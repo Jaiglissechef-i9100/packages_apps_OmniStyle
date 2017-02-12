@@ -16,14 +16,14 @@ You should have received a copy of the GNU General Public License
 along with this program.  If not, see <http://www.gnu.org/licenses/>.
 -->
 <resources>
-    <string name="browse_header">En-t&euml;tes</string>
-    <string name="custom_header_image_notice">S&eacute;l&eacute;ctionnez un style</string>
+    <string name="browse_header">En-têtes</string>
+    <string name="custom_header_image_notice">Séléctionnez un style</string>
 
     <string name="browse_walls">OMNI Wallpapers</string>
-    <string name="wallpaper_type_dialog_title">S&eacute;l&eacute;ctionnez</string>
+    <string name="wallpaper_type_dialog_title">Séléctionnez</string>
     <string name="wallpaper_type_both">Les deux</string>
     <string name="wallpaper_type_system">Ecran d\'accueil</string>
-    <string name="wallpaper_type_lock">Ecran de v&eacute;rrouillage</string>
+    <string name="wallpaper_type_lock">Ecran de vérrouillage</string>
 
-    <string name="header_creator_label">Cr&eacute;ateur\u003a </string>
+    <string name="header_creator_label">Créateur\u003a </string>
 </resources>
