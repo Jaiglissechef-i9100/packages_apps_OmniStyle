@@ -99,8 +99,11 @@ public class BrowseWallsActivity extends Activity {
             WallpaperInfo wi = mWallpaperList.get(position);
             int resId = mRes.getIdentifier(wi.mImage, "drawable", mPackageName);
 
-            Picasso.with(BrowseWallsActivity.this)
-                .load(resId).into(holder.mWallpaperImage);
+            if (resId != 0) {
+                Picasso.with(BrowseWallsActivity.this).load(resId).into(holder.mWallpaperImage);
+            } else {
+                holder.mWallpaperImage.setImageDrawable(null);
+            }
 
             holder.mWallpaperName.setText(wi.mImage);
             holder.mWallpaperCreator.setVisibility(TextUtils.isEmpty(wi.mCreator) ? View.GONE : View.VISIBLE);
@@ -153,61 +156,58 @@ public class BrowseWallsActivity extends Activity {
             mWallpaperView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
                 @Override
                 public void onItemClick(AdapterView<?> adapterView, View view, int i, long l) {
+                    if (!checkCropActivity()) {
+                        AlertDialog.Builder noCropActivityDialog = new AlertDialog.Builder(BrowseWallsActivity.this);
+                        noCropActivityDialog.setMessage(getResources().getString(R.string.no_crop_activity_dialog_text));
+                        noCropActivityDialog.setTitle(getResources().getString(R.string.no_crop_activity_dialog_title));
+                        noCropActivityDialog.setCancelable(false);
+                        noCropActivityDialog.setPositiveButton(android.R.string.ok, null);
+                        AlertDialog d = noCropActivityDialog.create();
+                        d.show();
+                        return;
+                    }
                     WallpaperInfo wi = mWallpaperList.get(i);
                     WallpaperManager wpm = WallpaperManager.getInstance(getApplicationContext());
                     int resId = mRes.getIdentifier(wi.mImage, "drawable", mPackageName);
+                    if (resId == 0) {
+                        return;
+                    }
                     Drawable image = mRes.getDrawable(resId, null);
 
-                    int wpWidth = wpm.getDesiredMinimumWidth();
-                    int wpHeight = wpm.getDesiredMinimumHeight();
+                    final int wpWidth = wpm.getDesiredMinimumWidth();
+                    final int wpHeight = wpm.getDesiredMinimumHeight();
                     Display disp = getWindowManager().getDefaultDisplay();
                     Point dispSize = new Point();
-                    disp.getSize(dispSize);
+                    disp.getRealSize(dispSize);
 
                     // if that image ratio is close to the display size ratio
                     // assume this wall is meant to be fullscreen without scrolling
                     float displayRatio = (float) Math.round(((float) dispSize.x / dispSize.y) * 10) / 10;
                     float imageRatio = (float) Math.round(((float) image.getIntrinsicWidth() / image.getIntrinsicHeight()) * 10) / 10;
-                    if (displayRatio == imageRatio) {
-                        wpWidth = dispSize.x;
-                        wpHeight = dispSize.y;
-                    }
-
-                    float spotlightX = (float) dispSize.x / wpWidth;
-                    float spotlightY = (float) dispSize.y / wpHeight;
-
-                    Uri imageUri = Uri.parse("android.resource://" + mPackageName + "/" + resId);
-
-                    Intent cropAndSetWallpaperIntent = new Intent();
-                    cropAndSetWallpaperIntent.setComponent(new ComponentName("com.android.gallery3d",
-                            "com.android.gallery3d.filtershow.crop.CropActivity"))
-                        .setDataAndType(imageUri, IMAGE_TYPE)
-                        .putExtra(CropExtras.KEY_OUTPUT_X, wpWidth)
-                        .putExtra(CropExtras.KEY_OUTPUT_Y, wpHeight)
-                        .putExtra(CropExtras.KEY_ASPECT_X, wpWidth)
-                        .putExtra(CropExtras.KEY_ASPECT_Y, wpHeight)
-                        .putExtra(CropExtras.KEY_SPOTLIGHT_X, spotlightX)
-                        .putExtra(CropExtras.KEY_SPOTLIGHT_Y, spotlightY)
-                        .putExtra(CropExtras.KEY_SCALE, true)
-                        .putExtra(CropExtras.KEY_SCALE_UP_IF_NEEDED, true);
-
-                    AlertDialog.Builder wallpaperTypeDialog = new AlertDialog.Builder(BrowseWallsActivity.this);
-                    wallpaperTypeDialog.setTitle(getResources().getString(R.string.wallpaper_type_dialog_title));
-                    wallpaperTypeDialog.setItems(R.array.wallpaper_type_list, new DialogInterface.OnClickListener() {
-                        public void onClick(DialogInterface dialog, int item) {
-                            int wallpaperType = CropExtras.DEFAULT_WALLPAPER_TYPE;
-                            if (item == 1) {
-                                wallpaperType = WallpaperManager.FLAG_SYSTEM;
-                            } else if (item == 2) {
-                                wallpaperType = WallpaperManager.FLAG_LOCK;
+                    if (displayRatio != imageRatio) {
+                        // ask if scrolling wallpaper should be used original size
+                        // or if it should be cropped to image size
+                        AlertDialog.Builder scrollingWallDialog = new AlertDialog.Builder(BrowseWallsActivity.this);
+                        scrollingWallDialog.setMessage(getResources().getString(R.string.scrolling_wall_dialog_text));
+                        scrollingWallDialog.setTitle(getResources().getString(R.string.scrolling_wall_dialog_title));
+                        scrollingWallDialog.setCancelable(false);
+                        scrollingWallDialog.setPositiveButton(R.string.scrolling_wall_yes, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                doCallCropActivity(resId, dispSize, wpWidth, wpHeight);
                             }
-                            cropAndSetWallpaperIntent.putExtra(CropExtras.KEY_SET_AS_WALLPAPER, true)
-                                    .putExtra(CropExtras.KEY_WALLPAPER_TYPE, wallpaperType);
-                            startActivityForResult(cropAndSetWallpaperIntent, IMAGE_CROP_AND_SET);
-                        }
-                    });
-                    AlertDialog d = wallpaperTypeDialog.create();
-                    d.show();
+                        });
+                        scrollingWallDialog.setNegativeButton(R.string.scrolling_wall_no, new DialogInterface.OnClickListener() {
+                            @Override
+                            public void onClick(DialogInterface dialog, int which) {
+                                doCallCropActivity(resId, dispSize, dispSize.x, dispSize.y);
+                            }
+                        });
+                        AlertDialog d = scrollingWallDialog.create();
+                        d.show();
+                    } else {
+                        doCallCropActivity(resId, dispSize, dispSize.x, dispSize.y);
+                    }
                 }
             });
             mAdapter = new WallpaperListAdapter(this);
@@ -278,5 +278,53 @@ public class BrowseWallsActivity extends Activity {
             }
         } while ((eventType = parser.next()) != XmlPullParser.END_DOCUMENT);
         if (DEBUG) Log.i(TAG, "loaded size = " + mWallpaperList.size());
+    }
+
+    private Intent getCropActivity() {
+        final Intent cropAndSetWallpaperIntent = new Intent();
+        cropAndSetWallpaperIntent.setComponent(new ComponentName("com.android.gallery3d",
+                "com.android.gallery3d.filtershow.crop.CropActivity"));
+        return cropAndSetWallpaperIntent;
+    }
+
+    private boolean checkCropActivity() {
+        final Intent cropAndSetWallpaperIntent = getCropActivity();
+        return cropAndSetWallpaperIntent.resolveActivityInfo(getPackageManager(), 0) != null;
+    }
+
+    private void doCallCropActivity(int resId, Point dispSize, int wpWidth, int wpHeight) {
+        float spotlightX = (float) dispSize.x / wpWidth;
+        float spotlightY = (float) dispSize.y / wpHeight;
+
+        Uri imageUri = Uri.parse("android.resource://" + mPackageName + "/" + resId);
+
+        final Intent cropAndSetWallpaperIntent = getCropActivity()
+                        .setDataAndType(imageUri, IMAGE_TYPE)
+                        .putExtra(CropExtras.KEY_OUTPUT_X, wpWidth)
+                        .putExtra(CropExtras.KEY_OUTPUT_Y, wpHeight)
+                        .putExtra(CropExtras.KEY_ASPECT_X, wpWidth)
+                        .putExtra(CropExtras.KEY_ASPECT_Y, wpHeight)
+                        .putExtra(CropExtras.KEY_SPOTLIGHT_X, spotlightX)
+                        .putExtra(CropExtras.KEY_SPOTLIGHT_Y, spotlightY)
+                        .putExtra(CropExtras.KEY_SCALE, true)
+                        .putExtra(CropExtras.KEY_SCALE_UP_IF_NEEDED, true);
+
+        AlertDialog.Builder wallpaperTypeDialog = new AlertDialog.Builder(BrowseWallsActivity.this);
+        wallpaperTypeDialog.setTitle(getResources().getString(R.string.wallpaper_type_dialog_title));
+        wallpaperTypeDialog.setItems(R.array.wallpaper_type_list, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int item) {
+                int wallpaperType = CropExtras.DEFAULT_WALLPAPER_TYPE;
+                if (item == 1) {
+                    wallpaperType = WallpaperManager.FLAG_SYSTEM;
+                } else if (item == 2) {
+                    wallpaperType = WallpaperManager.FLAG_LOCK;
+                }
+                cropAndSetWallpaperIntent.putExtra(CropExtras.KEY_SET_AS_WALLPAPER, true)
+                        .putExtra(CropExtras.KEY_WALLPAPER_TYPE, wallpaperType);
+                startActivityForResult(cropAndSetWallpaperIntent, IMAGE_CROP_AND_SET);
+            }
+        });
+        AlertDialog d = wallpaperTypeDialog.create();
+        d.show();
     }
 }
